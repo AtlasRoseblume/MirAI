@@ -1,5 +1,6 @@
 numpy
 sounddevice
+soundfile
 piper-tts
 faster-whisper
 librosa
