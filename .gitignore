@@ -5,3 +5,4 @@ venv
 *.log
 out/
 config.json
+models

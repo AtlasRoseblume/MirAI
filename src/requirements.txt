@@ -3,4 +3,5 @@ sounddevice
 soundfile
 piper-tts
 faster-whisper
+llama-cpp-python[server]
 librosa
