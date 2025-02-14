@@ -1,4 +1,5 @@
 import logging
+import json
 import os
 import numpy as np
 from datetime import datetime
@@ -11,7 +12,7 @@ from .stt import STT
 from .tts import TTS
 
 class MirAI:
-    def __init__(self, voice_path: str, microphone: str, record_mode: bool = False):
+    def __init__(self, voice_path: str, microphone: str, record_mode: bool = False, config_path: str = 'config.json'):
         self.logger =logging.getLogger("MirAI")
         self.running = True
 
@@ -29,8 +30,19 @@ class MirAI:
         self.buffer = ""
         self.start_index = None
 
-        self.wake_strings = ["hello world"]
-        self.end_strings = ["goodbye world"]
+        default_wake_phrases = ["hello world"]
+        default_end_phrases = ["goodbye world"]
+
+        try:
+            with open(config_path, 'r') as file:
+                data = json.load(file)
+            
+            self.wake_strings = data.get('wake_phrases', default_wake_phrases)
+            self.end_strings = data.get('end_phrases', default_end_phrases)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self.logger.error(f"Failed to load JSON File: {e}")
+            self.wake_strings = default_wake_phrases
+            self.end_strings = default_end_phrases
 
     def audio_listener(self):
         while self.running:
@@ -117,8 +129,9 @@ def main():
     logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
 
     parser = ArgumentParser(description="Start Robot Waifu Program")
-    parser.add_argument('-r', '--record', action='store_true', help="Record microphone and video")
+    parser.add_argument('-c', '--config', type=str, default="config.json", help="Default configuration file")
     parser.add_argument('-m', '--microphone', required=True, type=str, help="Micrpohone Name")
+    parser.add_argument('-r', '--record', action='store_true', help="Record microphone and video")
     parser.add_argument('-v', '--voice', required=True, type=str, help="Voice Model File (.onnx)")
 
     args = parser.parse_args()

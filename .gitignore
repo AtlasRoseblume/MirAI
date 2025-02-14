@@ -4,3 +4,4 @@ venv
 *.onnx.json
 *.log
 out/
+config.json
