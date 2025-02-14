@@ -38,8 +38,20 @@ class MirAI:
             self.audio_queue.put_nowait(audio_clip) # Could error (but how?)
 
     @staticmethod
-    def find_last_occurence(string, substrings):
-        return max((string.lower().rfind(sub.lower()) for sub in substrings), default=-1)
+    def find_first_occurence(string, substrings):
+        earliest_index = float('inf')
+        found_substring = None
+
+        for sub in substrings:
+            index = string.lower().find(sub.lower())
+
+            if 0 <= index < earliest_index:
+                earliest_index = index
+                found_substring = sub
+        
+        if found_substring is not None:
+            return earliest_index, len(found_substring)
+        return -1, 0
 
     def find_trigger(self, text: str):
         self.buffer += text
@@ -47,13 +59,13 @@ class MirAI:
         print(self.buffer)
 
         if self.start_index is None:
-            start_match = MirAI.find_last_occurence(self.buffer, self.wake_strings)
+            start_match, strlen = MirAI.find_first_occurence(self.buffer, self.wake_strings)
             
             if start_match != -1:
-                self.start_index = start_match + len('hello world')
+                self.start_index = start_match + strlen
         
         if self.start_index is not None:
-            end_index = MirAI.find_last_occurence(self.buffer, self.end_strings)
+            end_index, _ = MirAI.find_first_occurence(self.buffer, self.end_strings)
 
             if end_index != -1:
                 capture = self.buffer[self.start_index:end_index].lstrip("., \n\t").capitalize()
