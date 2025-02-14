@@ -5,3 +5,6 @@ piper-tts
 faster-whisper
 llama-cpp-python[server]
 librosa
+langchain
+langchain_openai
+langgraph

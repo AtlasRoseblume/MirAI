@@ -155,7 +155,7 @@ class MirAI:
 
 
 def main():
-    logging.basicConfig(filename="stt.log", level=logging.DEBUG)
+    logging.basicConfig(filename="mirai.log", level=logging.DEBUG)
     logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
 
     parser = ArgumentParser(description="Start Robot Waifu Program")
