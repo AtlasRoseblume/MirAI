@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+from concurrent.futures import TimeoutError, ThreadPoolExecutor
 from datetime import datetime
 from threading import Thread
 from queue import Queue
@@ -144,8 +145,14 @@ class MirAI:
                     continue
 
                 if self.listening:
-                    text = self.stt.transcribe(audio_clip)
-                    self.find_trigger(text)
+                    with ThreadPoolExecutor() as executor:
+                        future = executor.submit(lambda: self.stt.transcribe(audio_clip))
+
+                        try:
+                            text = future.result(timeout=10)
+                            self.find_trigger(text)
+                        except TimeoutError:
+                            self.logger.info("Whisper Timed Out!")
 
                 if not self.headless:
                     self.running = self.ui.running
