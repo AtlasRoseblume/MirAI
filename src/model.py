@@ -137,7 +137,7 @@ class Model:
 
             # Reset core state, ready to go again
             core_state.listen_time = time()
-            core_state.listening = True
+            core_state.shared_state["listening"] = True
 
 
     def close(self):

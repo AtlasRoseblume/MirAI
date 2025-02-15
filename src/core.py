@@ -1,12 +1,14 @@
 import logging
 import json
+import multiprocessing
+import multiprocessing.process
 import os
 from concurrent.futures import TimeoutError, ThreadPoolExecutor
 from datetime import datetime
 from threading import Thread
 from queue import Queue
 from soundfile import SoundFile
-from time import time
+from time import time, sleep
 from argparse import ArgumentParser
 from .mic import Microphone
 from .model import Model
@@ -14,17 +16,19 @@ from .stt import STT
 from .ui import UI
 
 class MirAI:
-    def __init__(self, voice_path: str, microphone: str, llm_path: str, images_path: str, record_mode: bool = False, headless_mode: bool = False, config_path: str = 'config.json'):
+    def __init__(self, manager, voice_path: str, microphone: str, llm_path: str, images_path: str, record_mode: bool = False, headless_mode: bool = False, config_path: str = 'config.json'):
         self.logger =logging.getLogger("MirAI")
-        self.running = True
 
-        self.microphone = Microphone(microphone)
-        self.stt = STT()
-
-        self.audio_queue = Queue(maxsize=12) # Set this to an implausibly high number (60 seconds backlog)
-        self.listener_thread = Thread(target=MirAI.audio_listener, args=(self,))
+        self.audio_queue = multiprocessing.Queue(maxsize=12) # Set this to an implausibly high number (60 seconds backlog)
+        self.transcription_queue = multiprocessing.Queue()
         
-        self.listening = True
+        self.shared_state = manager.dict()
+        self.shared_state["running"] = True
+        self.shared_state["listening"] = True
+
+        self.listener_thread = multiprocessing.Process(target=MirAI.audio_listener, args=(self, microphone, self.shared_state))
+        self.transcription_thread = multiprocessing.Process(target=MirAI.run_transcription, args=(self, self.shared_state))
+        
         self.recording = record_mode
         self.headless = headless_mode
 
@@ -67,17 +71,37 @@ class MirAI:
 
         self.model = Model(llm_path, voice_path, self, prompt=prompt, cheat_host=cheat_host, cheat_port=cheat_port, host=base_host, port=base_port)
 
-        if not self.headless:
-            self.ui = UI(self, images_path)
-
         # Start listen thread at the end so it's not offset
         self.listener_thread.start()
+        self.transcription_thread.start()
+
+        if not self.headless:
+            self.ui = UI(self)
 
 
-    def audio_listener(self):
-        while self.running:
-            audio_clip = self.microphone.record(5)
-            self.audio_queue.put_nowait(audio_clip) # Could error (but how?)
+    def audio_listener(self, mic_name: str, shared_state):
+        if self.recording:
+            os.makedirs('./out/recordings', exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_filename = os.path.join('./out/recordings', f'recording_{timestamp}.flac')
+            file = SoundFile(output_filename, mode='w', samplerate=16000, channels=1, format='FLAC')
+        
+        microphone = Microphone(mic_name)
+
+        while shared_state["running"]:
+            try:
+                audio_clip = microphone.record(5)
+                
+                if self.recording:
+                    file.write(audio_clip)
+                    file.flush()
+                
+                self.audio_queue.put_nowait(audio_clip) # Could error (but how?)
+            except KeyboardInterrupt:
+                break
+
+        if self.recording:
+            file.close()        
 
     @staticmethod
     def find_first_occurence(string, substrings):
@@ -134,54 +158,62 @@ class MirAI:
                 self.captured_text = capture
                 self.response_buffer = ""
 
-                self.listening = False
+                self.shared_state["listening"] = False
                 self.model.queue.put_nowait((capture, self))
 
                 # Reset State
                 self.buffer = ""
                 self.start_index = None
 
+    def transcription_worker(audio, result_queue):
+        try:
+            stt = STT()
+            text = stt.transcribe(audio_data=audio)
+            result_queue.put({"success": True, "text": text})
+        except Exception as e:
+            result_queue.put({"success": False, "error": str(e)})
 
-    def run(self):
-        print("MirAI ready!")
-
-        if self.recording:
-            os.makedirs('./out/recordings', exist_ok=True)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_filename = os.path.join('./out/recordings', f'recording_{timestamp}.flac')
-            file = SoundFile(output_filename, mode='w', samplerate=16000, channels=1, format='FLAC')
-
-        while self.running:
+    def run_transcription(self, shared_state, timeout=10):
+        while shared_state["running"]:
             try:
+                sleep(0.1)
+                
                 audio_clip = self.audio_queue.get()
-
-                if self.recording:
-                    file.write(audio_clip)
-                    file.flush()
-
                 current_time = time()
                 if current_time - self.listen_time < 5:
                     continue
 
-                if self.listening:
-                    with ThreadPoolExecutor() as executor:
-                        future = executor.submit(lambda: self.stt.transcribe(audio_clip))
+                if shared_state["listening"]: 
+                    result_queue = multiprocessing.Queue()
+                    process = multiprocessing.Process(target=MirAI.transcription_worker, args=(audio_clip, result_queue))
+                    process.start()
+                    process.join(timeout)
 
-                        try:
-                            text = future.result(timeout=10)
-                            self.find_trigger(text)
-                        except TimeoutError:
-                            self.logger.info("Whisper Timed Out!")
+                    if process.is_alive():
+                        process.terminate()
+                        process.join()
+                        self.logger.info("Whisper timed out!")
+                    
+                    result = result_queue.get() if not result_queue.empty() else None
 
-                if not self.headless:
-                    self.running = self.ui.running
-
+                    if result:
+                        self.transcription_queue.put(result)
             except KeyboardInterrupt:
-                self.running = False
+                break
 
-                if not self.headless:
-                    self.ui.running = False
-                
+    def run(self):
+        print("MirAI ready!")
+
+        while self.shared_state["running"]:
+            try:
+                if self.transcription_queue.qsize() > 0:
+                    transciption_result = self.transcription_queue.get()
+                    if transciption_result["success"]:
+                        self.find_trigger(transciption_result["text"])
+                    else:
+                        self.logger.error(f"Error: {transciption_result['error']}")
+            except KeyboardInterrupt:
+                self.shared_state["running"] = False
                 break
 
         print("Exiting normally.")
@@ -189,11 +221,11 @@ class MirAI:
         self.listener_thread.join()
         print("Listener joined.")
 
+        self.transcription_thread.join()
+        print("Transcriber joined.")
+
         self.model.close()
         print("Closed llama-server")
-        
-        if self.recording:
-            file.close()
     
     def toggle_cheat_mode(self):
         self.logger.info(f"Cheat Mode Set: {not self.model.cheat_mode}")
@@ -215,5 +247,6 @@ def main():
 
     args = parser.parse_args()
 
-    mirai = MirAI(args.voice, args.microphone, args.llm, args.images, args.record, args.no_window)
-    mirai.run()
+    with multiprocessing.Manager() as manager:
+        mirai = MirAI(manager, args.voice, args.microphone, args.llm, args.images, args.record, args.no_window)
+        mirai.run()

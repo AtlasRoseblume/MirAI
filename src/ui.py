@@ -7,11 +7,9 @@ from PIL import Image
 
 class UI:
     def __init__(self, core, image_path: str = "images", title: str = "MirAI"):
-        self.running = True
-    
         self.background_thread = Thread(target=UI.run_customtkinter, args=(self, core, image_path, title))
+        self.running = True
         self.background_thread.start()
-
     
     def load_images(self, folder_path, image_size):
         images = []
@@ -106,11 +104,12 @@ class UI:
         countdown = random.uniform(min_interval, max_interval)
         start_time = time()
         curr_time = time()
-        while self.running:
+        while core.shared_state["running"]:
             try:
                 app.update_idletasks()
                 app.update()
 
+                core.shared_state["running"] = self.running
                 curr_time = time()
                 if (curr_time - start_time) > countdown:
                     new_img = random.choice(self.images)
@@ -123,7 +122,7 @@ class UI:
                 else:
                     cheat_button.configure(fg_color="red")
 
-                if core.listening:
+                if core.shared_state["listening"]:
                     status_label.configure(text="Listening...")
                     sublabel_1.configure(text=UI.get_history(core.buffer))
                 else:
@@ -134,8 +133,10 @@ class UI:
                         sublabel_1.configure(text=UI.get_history(core.response_buffer))
 
                 sleep(0.01)
-            except:
+            except Exception as e:
+                print(f"Error: {e}")
                 self.running = False
                 break
         
+        core.shared_state["running"] = self.running
         app.destroy()
