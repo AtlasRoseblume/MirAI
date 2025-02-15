@@ -1,7 +1,6 @@
 import logging
 import json
 import os
-import numpy as np
 from datetime import datetime
 from threading import Thread
 from queue import Queue
@@ -11,9 +10,10 @@ from argparse import ArgumentParser
 from .mic import Microphone
 from .model import Model
 from .stt import STT
+from .ui import UI
 
 class MirAI:
-    def __init__(self, voice_path: str, microphone: str, llm_path: str, record_mode: bool = False, config_path: str = 'config.json'):
+    def __init__(self, voice_path: str, microphone: str, llm_path: str, record_mode: bool = False, headless_mode: bool = False, config_path: str = 'config.json'):
         self.logger =logging.getLogger("MirAI")
         self.running = True
 
@@ -25,8 +25,11 @@ class MirAI:
         
         self.listening = True
         self.recording = record_mode
+        self.headless = headless_mode
 
         self.buffer = ""
+        self.captured_text = ""
+        self.response_buffer = ""
         self.start_index = None
 
         self.listen_time = time()
@@ -46,7 +49,10 @@ class MirAI:
             self.end_strings = default_end_phrases
 
         # TODO: Customize port and host
-        self.model = Model(llm_path, voice_path)
+        self.model = Model(llm_path, voice_path, self)
+
+        if not self.headless:
+            self.ui = UI(self)
 
         # Start listen thread at the end so it's not offset
         self.listener_thread.start()
@@ -105,6 +111,8 @@ class MirAI:
             if end_index != -1:
                 capture = self.buffer[self.start_index:end_index].lstrip("., \n\t").capitalize()
                 print(f"You said: {capture}")
+                self.captured_text = capture
+                self.response_buffer = ""
 
                 self.listening = False
                 self.model.queue.put_nowait((capture, self))
@@ -123,7 +131,7 @@ class MirAI:
             output_filename = os.path.join('./out/recordings', f'recording_{timestamp}.flac')
             file = SoundFile(output_filename, mode='w', samplerate=16000, channels=1, format='FLAC')
 
-        while True:
+        while self.running:
             try:
                 audio_clip = self.audio_queue.get()
 
@@ -139,16 +147,24 @@ class MirAI:
                     text = self.stt.transcribe(audio_clip)
                     self.find_trigger(text)
 
+                if not self.headless:
+                    self.running = self.ui.running
+
             except KeyboardInterrupt:
                 self.running = False
-                print("Exiting normally.")
 
-                self.listener_thread.join()
-                print("Listener joined.")
-
-                self.model.close()
-                print("Closed llama-server")
+                if not self.headless:
+                    self.ui.running = False
+                
                 break
+
+        print("Exiting normally.")
+
+        self.listener_thread.join()
+        print("Listener joined.")
+
+        self.model.close()
+        print("Closed llama-server")
         
         if self.recording:
             file.close()
@@ -160,6 +176,7 @@ def main():
 
     parser = ArgumentParser(description="Start Robot Waifu Program")
     parser.add_argument('-c', '--config', type=str, default="config.json", help="Default configuration file")
+    parser.add_argument('-n', '--no_window', action='store_true', help="Run Headless Mode")
     parser.add_argument('-l', '--llm', required=True, type=str, help="Model path (.gguf)")
     parser.add_argument('-m', '--microphone', required=True, type=str, help="Micrpohone Name")
     parser.add_argument('-r', '--record', action='store_true', help="Record microphone and video")
@@ -167,5 +184,5 @@ def main():
 
     args = parser.parse_args()
 
-    mirai = MirAI(args.voice, args.microphone, args.llm, args.record)
+    mirai = MirAI(args.voice, args.microphone, args.llm, args.record, args.no_window)
     mirai.run()

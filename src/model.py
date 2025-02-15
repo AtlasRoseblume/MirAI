@@ -22,7 +22,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return store[session_id]
 
 class Model:
-    def __init__(self, model_path: str, voice_path: str, host: str = "127.0.0.1", port: int = 8000):
+    def __init__(self, model_path: str, voice_path: str, core, host: str = "127.0.0.1", port: int = 8000):
         self.logger = logging.getLogger("Model")
         
         command = [
@@ -64,10 +64,10 @@ class Model:
         self.base_model = RunnableWithMessageHistory(self.chain, get_session_history)
         self.config = {"configurable": {"session_id": "abc1"}}
 
-        self.submit_thread = Thread(target=Model.submit_listener, args=(self,))
+        self.submit_thread = Thread(target=Model.submit_listener, args=(self, core))
         self.submit_thread.start()
 
-    def submit_listener(self):
+    def submit_listener(self, core):
         sleep(3)
         while self.running:
             if self.queue.qsize() == 0:
@@ -85,6 +85,7 @@ class Model:
                 config=self.config,
             ):
                 buffer += r.content
+                core.response_buffer += r.content
 
                 for i in range(len(buffer)):
                     if buffer[i] in ['.', '?', '!']:
@@ -96,7 +97,8 @@ class Model:
             end = time()
 
             print(f"AI Response {end - start}s")
-            self.tts.say(buffer)
+            if(len(buffer) > 1):
+                self.tts.say(buffer)
 
             # Reset core state, ready to go again
             core_state.listen_time = time()
