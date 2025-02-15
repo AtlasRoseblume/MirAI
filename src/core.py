@@ -44,6 +44,8 @@ class MirAI:
         cheat_host = "1.1.1.1"
         cheat_port = 8000
 
+        prompt = "You are a useful AI assistant. Please help the user."
+
         try:
             with open(config_path, 'r') as file:
                 data = json.load(file)
@@ -56,12 +58,14 @@ class MirAI:
 
             cheat_host = data["cheat_host"]
             cheat_port = data["cheat_port"]
+
+            prompt = data["prompt"]
         except (FileNotFoundError, json.JSONDecodeError) as e:
             self.logger.error(f"Failed to load JSON File: {e}")
             self.wake_strings = default_wake_phrases
             self.end_strings = default_end_phrases
 
-        self.model = Model(llm_path, voice_path, self, cheat_host=cheat_host, cheat_port=cheat_port, host=base_host, port=base_port)
+        self.model = Model(llm_path, voice_path, self, prompt=prompt, cheat_host=cheat_host, cheat_port=cheat_port, host=base_host, port=base_port)
 
         if not self.headless:
             self.ui = UI(self, images_path)

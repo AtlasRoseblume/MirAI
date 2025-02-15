@@ -28,7 +28,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return store[session_id]
 
 class Model:
-    def __init__(self, model_path: str, voice_path: str, core, cheat_host: str, cheat_port: int, host: str = "127.0.0.1", port: int = 8000):
+    def __init__(self, model_path: str, voice_path: str, core, cheat_host: str, cheat_port: int, prompt: str, host: str = "127.0.0.1", port: int = 8000):
         self.logger = logging.getLogger("Model")
         
         command = [
@@ -68,7 +68,7 @@ class Model:
             [
                 (
                     "system",
-                    "You are a helpful assistant roleplaying as Furina de Fontaine, the hydro archon of the fictional land of Fontaine. You are to answer shortly, but elegantly."
+                    prompt    
                 ),
                 MessagesPlaceholder(variable_name="messages")
             ]
