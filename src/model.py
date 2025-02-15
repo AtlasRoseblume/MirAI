@@ -12,12 +12,18 @@ from langchain_core.chat_history import (
 )
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk
 
 store = {}
 def get_session_history(session_id: str) -> BaseChatMessageHistory:
     if session_id not in store:
         store[session_id] = InMemoryChatMessageHistory()
+
+        try:
+            with open("chat_history.txt", "r") as f:
+                store[session_id].messages = eval(f.read())
+        except Exception as e:
+            print(f"ERROR: {e}")
     
     return store[session_id]
 
@@ -43,7 +49,7 @@ class Model:
         self.queue = Queue()
 
         self.model = ChatOpenAI(
-            model="gemma",
+            model="qwen2.5",
             base_url=f"http://{host}:{port}/v1",
             api_key="not_needed",
             temperature=0.7
@@ -99,6 +105,9 @@ class Model:
             print(f"AI Response {end - start}s")
             if(len(buffer) > 1):
                 self.tts.say(buffer)
+
+            with open("chat_history.txt", "w") as f:
+                print(get_session_history(self.config["configurable"]["session_id"]).messages, file=f)
 
             # Reset core state, ready to go again
             core_state.listen_time = time()

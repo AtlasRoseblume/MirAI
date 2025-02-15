@@ -8,3 +8,4 @@ config.json
 models
 run.sh
 images
+chat_history.*
