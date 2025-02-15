@@ -27,6 +27,7 @@ class MirAI:
         self.listening = True
         self.recording = record_mode
         self.headless = headless_mode
+        self.cheat_code = False
 
         self.buffer = ""
         self.captured_text = ""
@@ -175,6 +176,10 @@ class MirAI:
         
         if self.recording:
             file.close()
+    
+    def toggle_cheat_code(self):
+        self.logger.info(f"Cheat Mode Set: {not self.cheat_code}")
+        self.cheat_code = not self.cheat_code
 
 
 def main():

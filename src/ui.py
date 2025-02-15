@@ -45,11 +45,21 @@ class UI:
             app,
             text="Exit",
             command=lambda: self.exit_app(),
-            corner_radius=20,
+            corner_radius=10,
             font=("Arial", 16, "bold")
         )
-        exit_button.pack(pady=20, padx=20, anchor='se', side='bottom')
-        
+        exit_button.pack(pady=10, padx=20, anchor='se', side='bottom')
+
+        cheat_button = ctk.CTkButton(
+            app, 
+            text="Cheat Code", 
+            command=lambda: core.toggle_cheat_code(),
+            corner_radius=10,
+            font=("Arial", 16, "bold"),
+            fg_color="red"
+        )
+        cheat_button.pack(padx=20, anchor='se', side='bottom')
+
         status_label = ctk.CTkLabel(
             app,
             text = "Started!",
@@ -72,6 +82,11 @@ class UI:
             try:
                 app.update_idletasks()
                 app.update()
+
+                if core.cheat_code:
+                    cheat_button.configure(fg_color="green")
+                else:
+                    cheat_button.configure(fg_color="red")
 
                 if core.listening:
                     status_label.configure(text="Listening...")
