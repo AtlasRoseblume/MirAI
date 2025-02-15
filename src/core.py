@@ -6,6 +6,7 @@ import json
 import multiprocessing
 import multiprocessing.process
 import os
+import cv2
 from concurrent.futures import TimeoutError, ThreadPoolExecutor
 from datetime import datetime
 from threading import Thread
@@ -170,12 +171,33 @@ class MirAI:
                 picture_taken = False
                 picture = None
                 for sub in self.picture_strings:
-                    if sub in capture:
-                        picture_taken = True
-                        with Image.open("images/Bored.webp") as img:
-                            img_converted = io.BytesIO()
-                            img.save(img_converted, format='PNG')
-                            picture = base64.b64encode(img_converted.getvalue()).decode('utf-8')
+                    if sub.lower() in capture.lower():
+
+                        try:
+                            cap = cv2.VideoCapture(0)
+
+                            if not cap.isOpened():
+                                self.model.tts.say("Could not open camera!")
+                                break
+                        
+                            cv2.waitKey(1000)
+                            self.model.tts.say("Taking picture in 3, 2, 1!")
+
+                            ret, frame = cap.read()
+
+                            if not ret:
+                                self.model.tts.say("Could not capture frame!")
+                                break
+
+                            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                            buffer = io.BytesIO()
+                            image.save(buffer, format = "PNG")
+
+                            picture = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                            picture_taken = True
+                        except Exception as e:
+                            print(f"Error {e}")
+                            picture_taken = False
 
                 self.shared_state["listening"] = False
                 self.model.queue.put_nowait((capture, self, picture_taken, picture if picture_taken else None))

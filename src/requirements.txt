@@ -10,3 +10,4 @@ langchain_openai
 langgraph
 customtkinter
 pillow
+opencv-python
