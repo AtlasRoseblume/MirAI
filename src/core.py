@@ -1,4 +1,7 @@
+import base64
 import logging
+import io
+from PIL import Image
 import json
 import multiprocessing
 import multiprocessing.process
@@ -41,6 +44,7 @@ class MirAI:
 
         default_wake_phrases = ["hello world"]
         default_end_phrases = ["goodbye world"]
+        default_picture_phrases = ["take a picture"]
 
         base_host = "127.0.0.1"
         base_port = 8000
@@ -56,6 +60,7 @@ class MirAI:
             
             self.wake_strings = data.get('wake_phrases', default_wake_phrases)
             self.end_strings = data.get('end_phrases', default_end_phrases)
+            self.picture_strings = data.get('picture_phrases', default_picture_phrases)
 
             base_host = data["base_host"]
             base_port = data["base_port"]
@@ -68,6 +73,7 @@ class MirAI:
             self.logger.error(f"Failed to load JSON File: {e}")
             self.wake_strings = default_wake_phrases
             self.end_strings = default_end_phrases
+            self.picture_strings = default_picture_phrases
 
         self.model = Model(llm_path, voice_path, self, prompt=prompt, cheat_host=cheat_host, cheat_port=cheat_port, host=base_host, port=base_port)
 
@@ -101,7 +107,10 @@ class MirAI:
                 break
 
         if self.recording:
-            file.close()        
+            file.close() 
+
+        shared_state["listening"] = False
+        self.audio_queue.put_nowait([])
 
     @staticmethod
     def find_first_occurence(string, substrings):
@@ -158,8 +167,18 @@ class MirAI:
                 self.captured_text = capture
                 self.response_buffer = ""
 
+                picture_taken = False
+                picture = None
+                for sub in self.picture_strings:
+                    if sub in capture:
+                        picture_taken = True
+                        with Image.open("images/Bored.webp") as img:
+                            img_converted = io.BytesIO()
+                            img.save(img_converted, format='PNG')
+                            picture = base64.b64encode(img_converted.getvalue()).decode('utf-8')
+
                 self.shared_state["listening"] = False
-                self.model.queue.put_nowait((capture, self))
+                self.model.queue.put_nowait((capture, self, picture_taken, picture if picture_taken else None))
 
                 # Reset State
                 self.buffer = ""

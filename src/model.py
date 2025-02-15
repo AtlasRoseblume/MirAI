@@ -61,7 +61,7 @@ class Model:
             api_key="not_needed",
             temperature=0.7,
             timeout=10,
-            max_retries=1
+            max_retries=3
         )
 
         self.prompt = ChatPromptTemplate.from_messages(
@@ -93,7 +93,7 @@ class Model:
                 sleep(1)
                 continue
 
-            user_input, core_state = self.queue.get()
+            user_input, core_state, picture_taken, picture = self.queue.get()
 
             buffer = ""
 
@@ -106,8 +106,24 @@ class Model:
                 selected_model = self.base_model
 
             try:
+
+                if picture_taken:
+                    if self.cheat_mode:
+                        # Add picture image processed first
+                        message = HumanMessage(content=[
+                            {"type": "text", "text": f"Describe the image shown and use it to complete any questions asked. {user_input}"},
+                            {"type": "image_url", "image_url": f"data:image/png;base64,{picture}"}
+                        ])
+                        # We cannot save this history; It destroys everything
+                        selected_model = self.cheat_chain
+                    else:
+                        self.tts.say("Cheat mode deactivated, cannot use picture data.")
+                        message = HumanMessage(content=user_input)
+                else:
+                    message = HumanMessage(content=user_input)
+
                 for r in selected_model.stream(
-                    [HumanMessage(content=user_input)],
+                    [message],
                     config=self.config,
                 ):
                     buffer += r.content
