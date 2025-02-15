@@ -1,15 +1,32 @@
 import customtkinter as ctk
-import gc
-from time import sleep 
+import os
+import random
+from time import sleep, time
 from threading import Thread
+from PIL import Image
 
 class UI:
-    def __init__(self, core, title: str = "MirAI"):
+    def __init__(self, core, image_path: str = "images", title: str = "MirAI"):
         self.running = True
-
-        self.background_thread = Thread(target=UI.run_customtkinter, args=(self, core, title))
-        self.background_thread.start()
     
+        self.background_thread = Thread(target=UI.run_customtkinter, args=(self, core, image_path, title))
+        self.background_thread.start()
+
+    
+    def load_images(self, folder_path, image_size):
+        images = []
+
+        for file in os.listdir(folder_path):
+            if file.lower().endswith(".webp"): # TODO: Support other image formats
+                try:
+                    img = Image.open(os.path.join(folder_path, file))
+                    img = img.resize(image_size, Image.Resampling.LANCZOS)
+                    images.append(ctk.CTkImage(light_image=img, size=image_size))
+                except Exception as e:
+                    print(f"Error loading {file}: {e}")
+        
+        return images
+
     def close(self):
         self.exit_app()
         self.background_thread.join()
@@ -33,13 +50,14 @@ class UI:
         else:
             return substring
 
-    def run_customtkinter(self, core, title):
+    def run_customtkinter(self, core, image_path, title):
         # ctk.set_default_color_theme("blue")
 
         app = ctk.CTk()
         app.title(title)
         app.attributes('-fullscreen', True)
         app.configure(fg_color="#1F1F1F") 
+        self.images = self.load_images(image_path, (340, 340))
  
         exit_button = ctk.CTkButton(
             app,
@@ -76,12 +94,29 @@ class UI:
 
         sublabel_1.pack(pady=0, anchor='s', side='bottom')
         status_label.pack(pady=0, anchor='s', side='bottom')
+        
+        label = ctk.CTkLabel(app, text="")
+        label.place(relx=0.5, rely=0.375, anchor="center")
+        new_img = random.choice(self.images)
+        label.configure(image=new_img)
 
+        min_interval = 10
+        max_interval = 20
 
+        countdown = random.uniform(min_interval, max_interval)
+        start_time = time()
+        curr_time = time()
         while self.running:
             try:
                 app.update_idletasks()
                 app.update()
+
+                curr_time = time()
+                if (curr_time - start_time) > countdown:
+                    new_img = random.choice(self.images)
+                    label.configure(image=new_img)
+                    start_time = curr_time
+                    countdown = random.uniform(min_interval, max_interval)
 
                 if core.cheat_code:
                     cheat_button.configure(fg_color="green")

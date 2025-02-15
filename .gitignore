@@ -6,3 +6,5 @@ venv
 out/
 config.json
 models
+run.sh
+images

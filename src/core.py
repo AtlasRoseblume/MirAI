@@ -14,7 +14,7 @@ from .stt import STT
 from .ui import UI
 
 class MirAI:
-    def __init__(self, voice_path: str, microphone: str, llm_path: str, record_mode: bool = False, headless_mode: bool = False, config_path: str = 'config.json'):
+    def __init__(self, voice_path: str, microphone: str, llm_path: str, images_path: str, record_mode: bool = False, headless_mode: bool = False, config_path: str = 'config.json'):
         self.logger =logging.getLogger("MirAI")
         self.running = True
 
@@ -51,10 +51,11 @@ class MirAI:
             self.end_strings = default_end_phrases
 
         # TODO: Customize port and host
+        # TODO: Customize cheat mode port and host
         self.model = Model(llm_path, voice_path, self)
 
         if not self.headless:
-            self.ui = UI(self)
+            self.ui = UI(self, images_path)
 
         # Start listen thread at the end so it's not offset
         self.listener_thread.start()
@@ -189,6 +190,7 @@ def main():
     parser = ArgumentParser(description="Start Robot Waifu Program")
     parser.add_argument('-c', '--config', type=str, default="config.json", help="Default configuration file")
     parser.add_argument('-n', '--no_window', action='store_true', help="Run Headless Mode")
+    parser.add_argument('-i', '--images', type=str, default="images", help="Path to images directory for display")
     parser.add_argument('-l', '--llm', required=True, type=str, help="Model path (.gguf)")
     parser.add_argument('-m', '--microphone', required=True, type=str, help="Micrpohone Name")
     parser.add_argument('-r', '--record', action='store_true', help="Record microphone and video")
@@ -196,5 +198,5 @@ def main():
 
     args = parser.parse_args()
 
-    mirai = MirAI(args.voice, args.microphone, args.llm, args.record, args.no_window)
+    mirai = MirAI(args.voice, args.microphone, args.llm, args.images, args.record, args.no_window)
     mirai.run()
