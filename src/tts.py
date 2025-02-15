@@ -11,11 +11,11 @@ class TTS:
         self.stream.start()
         self.logger.info(f"Voice Model Loaded from {model_path}")
     
-    def say(self, text: str, speed: float = 0.8):
-        self.logger.debug(f"Printing \"{text}\" @ {speed}x speed")
+    def say(self, text: str):
+        self.logger.debug(f"Printing \"{text}\"")
 
         # We want to synthesize at max speed, so no silence
-        for audio_bytes in self.voice.synthesize_stream_raw(text, length_scale=speed, sentence_silence=0.0):
+        for audio_bytes in self.voice.synthesize_stream_raw(text):
             self.stream.write(np.frombuffer(audio_bytes, dtype=np.int16))
 
     def close(self):

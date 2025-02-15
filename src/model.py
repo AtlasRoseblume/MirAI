@@ -28,7 +28,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return store[session_id]
 
 class Model:
-    def __init__(self, model_path: str, voice_path: str, core, host: str = "127.0.0.1", port: int = 8000):
+    def __init__(self, model_path: str, voice_path: str, core, cheat_host: str, cheat_port: int, host: str = "127.0.0.1", port: int = 8000):
         self.logger = logging.getLogger("Model")
         
         command = [
@@ -55,6 +55,15 @@ class Model:
             temperature=0.7
         )
 
+        self.cheat_model = ChatOpenAI(
+            model="llava",
+            base_url=f"http://{cheat_host}:{cheat_port}/v1",
+            api_key="not_needed",
+            temperature=0.7,
+            timeout=10,
+            max_retries=1
+        )
+
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -66,9 +75,13 @@ class Model:
         )
 
         self.chain = self.prompt | self.model
+        self.cheat_chain = self.prompt | self.cheat_model
 
         self.base_model = RunnableWithMessageHistory(self.chain, get_session_history)
+        self.cheat_model = RunnableWithMessageHistory(self.cheat_chain, get_session_history)
         self.config = {"configurable": {"session_id": "abc1"}}
+
+        self.cheat_mode = False
 
         self.submit_thread = Thread(target=Model.submit_listener, args=(self, core))
         self.submit_thread.start()
@@ -86,19 +99,32 @@ class Model:
 
             start = time()
             print("Response:")
-            for r in self.base_model.stream(
-                [HumanMessage(content=user_input)],
-                config=self.config,
-            ):
-                buffer += r.content
-                core.response_buffer += r.content
 
-                for i in range(len(buffer)):
-                    if buffer[i] in ['.', '?', '!']:
-                        print(buffer[0:i+1])
-                        self.tts.say(buffer[0:i+1])
-                        buffer = buffer[i + 1:]
-                        break
+            if self.cheat_mode:
+                selected_model = self.cheat_model
+            else:
+                selected_model = self.base_model
+
+            try:
+                for r in selected_model.stream(
+                    [HumanMessage(content=user_input)],
+                    config=self.config,
+                ):
+                    buffer += r.content
+                    core.response_buffer += r.content
+
+                    for i in range(len(buffer)):
+                        if buffer[i] in ['.', '?', '!']:
+                            print(buffer[0:i+1])
+                            self.tts.say(buffer[0:i+1])
+                            buffer = buffer[i + 1:]
+                            break
+            except Exception as e:
+                print(f"ERROR: {e}")
+
+                if self.cheat_mode:
+                    self.cheat_mode = False
+
 
             end = time()
 

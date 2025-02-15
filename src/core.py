@@ -27,7 +27,6 @@ class MirAI:
         self.listening = True
         self.recording = record_mode
         self.headless = headless_mode
-        self.cheat_code = False
 
         self.buffer = ""
         self.captured_text = ""
@@ -39,20 +38,30 @@ class MirAI:
         default_wake_phrases = ["hello world"]
         default_end_phrases = ["goodbye world"]
 
+        base_host = "127.0.0.1"
+        base_port = 8000
+
+        cheat_host = "1.1.1.1"
+        cheat_port = 8000
+
         try:
             with open(config_path, 'r') as file:
                 data = json.load(file)
             
             self.wake_strings = data.get('wake_phrases', default_wake_phrases)
             self.end_strings = data.get('end_phrases', default_end_phrases)
+
+            base_host = data["base_host"]
+            base_port = data["base_port"]
+
+            cheat_host = data["cheat_host"]
+            cheat_port = data["cheat_port"]
         except (FileNotFoundError, json.JSONDecodeError) as e:
             self.logger.error(f"Failed to load JSON File: {e}")
             self.wake_strings = default_wake_phrases
             self.end_strings = default_end_phrases
 
-        # TODO: Customize port and host
-        # TODO: Customize cheat mode port and host
-        self.model = Model(llm_path, voice_path, self)
+        self.model = Model(llm_path, voice_path, self, cheat_host=cheat_host, cheat_port=cheat_port, host=base_host, port=base_port)
 
         if not self.headless:
             self.ui = UI(self, images_path)
@@ -112,6 +121,10 @@ class MirAI:
             end_index = MirAI.find_last_occurence(self.buffer, self.end_strings)
 
             if end_index != -1:
+                # Occurs when partial sentence fragment fails
+                if end_index < self.start_index:
+                    return
+
                 capture = self.buffer[self.start_index:end_index].lstrip("., \n\t").capitalize()
                 print(f"You said: {capture}")
                 self.captured_text = capture
@@ -178,9 +191,9 @@ class MirAI:
         if self.recording:
             file.close()
     
-    def toggle_cheat_code(self):
-        self.logger.info(f"Cheat Mode Set: {not self.cheat_code}")
-        self.cheat_code = not self.cheat_code
+    def toggle_cheat_mode(self):
+        self.logger.info(f"Cheat Mode Set: {not self.model.cheat_mode}")
+        self.model.cheat_mode = not self.model.cheat_mode
 
 
 def main():

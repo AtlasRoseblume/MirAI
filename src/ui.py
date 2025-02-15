@@ -70,8 +70,8 @@ class UI:
 
         cheat_button = ctk.CTkButton(
             app, 
-            text="Cheat Code", 
-            command=lambda: core.toggle_cheat_code(),
+            text="Cheat Mode", 
+            command=lambda: core.toggle_cheat_mode(),
             corner_radius=10,
             font=("Arial", 16, "bold"),
             fg_color="red"
@@ -118,7 +118,7 @@ class UI:
                     start_time = curr_time
                     countdown = random.uniform(min_interval, max_interval)
 
-                if core.cheat_code:
+                if core.model.cheat_mode:
                     cheat_button.configure(fg_color="green")
                 else:
                     cheat_button.configure(fg_color="red")
