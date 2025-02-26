@@ -1,16 +1,14 @@
 import customtkinter as ctk
 import os
 import random
+import sys
 from time import sleep, time
-from threading import Thread
 from PIL import Image
 
 class UI:
-    def __init__(self, core, image_path: str = "images", title: str = "MirAI"):
-        self.background_thread = Thread(target=UI.run_customtkinter, args=(self, core, image_path, title))
+    def __init__(self):
         self.running = True
-        self.background_thread.start()
-    
+
     def load_images(self, folder_path, image_size):
         images = []
 
@@ -49,32 +47,46 @@ class UI:
             return substring
 
     def run_customtkinter(self, core, image_path, title):
-        # ctk.set_default_color_theme("blue")
-
         app = ctk.CTk()
         app.title(title)
         app.attributes('-fullscreen', True)
-        app.configure(fg_color="#1F1F1F") 
-        self.images = self.load_images(image_path, (340, 340))
+        app.configure(fg_color="#101010") 
+
+        images = self.load_images(image_path, (340, 340))
  
+        bottom_frame = ctk.CTkFrame(app, fg_color="#101010")
+        bottom_frame.pack(side='bottom', fill='x')
+
+        ptt_button = ctk.CTkButton(
+            bottom_frame,
+            text="Push To Talk",
+            command=lambda: core.toggle_listening(),
+            corner_radius=10,
+            font=("Arial", 16, "bold"),
+            fg_color="red",
+            hover_color="dark red"
+        )
+        ptt_button.pack(ipady=20, pady=10, padx=20, anchor='sw', side='left')
+        
         exit_button = ctk.CTkButton(
-            app,
+            bottom_frame,
             text="Exit",
             command=lambda: self.exit_app(),
             corner_radius=10,
             font=("Arial", 16, "bold")
         )
-        exit_button.pack(pady=10, padx=20, anchor='se', side='bottom')
 
         cheat_button = ctk.CTkButton(
-            app, 
+            bottom_frame, 
             text="Cheat Mode", 
             command=lambda: core.toggle_cheat_mode(),
             corner_radius=10,
             font=("Arial", 16, "bold"),
             fg_color="red"
         )
-        cheat_button.pack(padx=20, anchor='se', side='bottom')
+        
+        exit_button.pack(pady=10, padx=20, anchor='se', side='bottom')
+        cheat_button.pack(pady=0, padx=20, anchor='se', side='bottom')
 
         status_label = ctk.CTkLabel(
             app,
@@ -85,7 +97,7 @@ class UI:
 
         sublabel_1 = ctk.CTkLabel(
             app,
-            text="",
+            text="Text appears here when submitted.",
             font=("Arial", 20, "bold"),
             text_color="#65FF65"
         )
@@ -94,8 +106,8 @@ class UI:
         status_label.pack(pady=0, anchor='s', side='bottom')
         
         label = ctk.CTkLabel(app, text="")
-        label.place(relx=0.5, rely=0.375, anchor="center")
-        new_img = random.choice(self.images)
+        label.place(relx=0.5, anchor="n")
+        new_img = random.choice(images)
         label.configure(image=new_img)
 
         min_interval = 10
@@ -112,7 +124,7 @@ class UI:
                 core.shared_state["running"] = self.running
                 curr_time = time()
                 if (curr_time - start_time) > countdown:
-                    new_img = random.choice(self.images)
+                    new_img = random.choice(images)
                     label.configure(image=new_img)
                     start_time = curr_time
                     countdown = random.uniform(min_interval, max_interval)
@@ -124,19 +136,40 @@ class UI:
 
                 if core.shared_state["listening"]:
                     status_label.configure(text="Listening...")
-                    sublabel_1.configure(text=UI.get_history(core.buffer))
+                    sublabel_1.configure(text="Text appears here when submitted.")
+                    ptt_button.configure(fg_color="green", hover_color="dark green")
                 else:
-                    status_label.configure(text="Thinking...")
+                    ptt_button.configure(fg_color="red", hover_color="dark red")
+
+                if not core.shared_state["listening"] and len(core.transcribed) != 0:
+                    status_label.configure(text="Thinking about what you said:")
+
                     if len(core.response_buffer) == 0:
-                        sublabel_1.configure(text=UI.get_history(core.captured_text))
+                        sublabel_1.configure(text=UI.get_history(core.transcribed))
                     else:
                         sublabel_1.configure(text=UI.get_history(core.response_buffer))
 
                 sleep(0.01)
+            except KeyboardInterrupt:
+                self.running = False
+                try:
+                    core.shared_state["running"] = False
+                except:
+                    pass
+
+                break
             except Exception as e:
                 print(f"Error: {e}")
                 self.running = False
+                try:
+                    core.shared_state["running"] = False
+                except:
+                    pass
+                
                 break
         
-        core.shared_state["running"] = self.running
+        if core.shared_state["running"]:
+            core.shared_state["running"] = self.running
         app.destroy()
+
+        core.invoker_thread.join()
