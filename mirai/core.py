@@ -195,9 +195,14 @@ class MirAI:
 
                     result = self.transcribe_submit((final_buffer, duration))
 
-                    # TODO: Check camera stuff
                     picture_taken = False
                     picture = None
+                    
+                    # Check for camera phrase
+                    for sub in self.picture_strings:
+                        if sub.lower() in result.lower():
+                            picture_taken, picture = self.take_picture()
+                    
 
                     # Submit to LLM
                     self.transcribed = result
@@ -216,42 +221,39 @@ class MirAI:
 
         self.model.close()
         
-    #             for sub in self.picture_strings:
-    #                 if sub.lower() in capture.lower():
+    def take_picture(self):
+        try:
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                self.model.tts.say("Could not open camera!")
+                return (False, None)
 
-    #                     try:
-    #                         cap = cv2.VideoCapture(0)
+            cv2.waitKey(5000)
+            self.model.tts.say("Taking picture now!")
 
-    #                         if not cap.isOpened():
-    #                             self.model.tts.say("Could not open camera!")
-    #                             break
-                        
-    #                         cv2.waitKey(1000)
-    #                         self.model.tts.say("Taking picture in 3, 2, 1!")
+            ret, frame = cap.read()
 
-    #                         ret, frame = cap.read()
+            if not ret:
+                self.model.tts.say("Could not capture frame!")
+                return (False, None)
 
-    #                         if not ret:
-    #                             self.model.tts.say("Could not capture frame!")
-    #                             break
 
-    #                         image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    #                         buffer = io.BytesIO()
-    #                         image.save(buffer, format = "PNG")
-
-    #                         picture = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    #                         picture_taken = True
-    #                     except Exception as e:
-    #                         print(f"Error {e}")
-    #                         picture_taken = False
+            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            buffer = io.BytesIO()
+            image.save(buffer, format = "PNG")
+            picture = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            
+            return (True, picture)
+        except Exception as e:
+            print(e)
+            return (False, None)
 
     def toggle_listening(self):
         self.shared_state["listening"] = not self.shared_state["listening"]
 
     def toggle_cheat_mode(self):
         self.logger.info(f"Cheat Mode Set: {not self.model.cheat_mode}")
-    #     self.model.cheat_mode = not self.model.cheat_mode
-
+        self.model.cheat_mode = not self.model.cheat_mode
 
 def main():
     logging.basicConfig(filename="mirai.log", level=logging.DEBUG)
