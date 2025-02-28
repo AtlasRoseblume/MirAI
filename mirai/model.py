@@ -148,6 +148,8 @@ class Model:
                 self.tts.say(buffer)
 
             with open("chat_history.txt", 'w') as f:
+                if picture_taken and selected_model == self.cheat_chain:
+                    get_session_history(self.config["configurable"]["session_id"]).messages.append(AIMessageChunk(content=core.response_buffer))
                 print(get_session_history(self.config["configurable"]["session_id"]).messages, file=f)
 
 
