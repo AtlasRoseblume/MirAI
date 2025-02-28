@@ -9,10 +9,9 @@ import multiprocessing
 import multiprocessing.process
 import os
 import cv2
-from concurrent.futures import TimeoutError, ThreadPoolExecutor
+import picamera2
 from datetime import datetime
 from threading import Thread
-from queue import Queue
 from soundfile import SoundFile
 from time import time, sleep
 from argparse import ArgumentParser
@@ -185,6 +184,7 @@ class MirAI:
             try:
                 sleep(0.1)
                 if not self.shared_state["listening"] and self.audio_queue.qsize() > 0:
+                    sleep(0.5)
                     # Obtain all audio, concat into a buffer, submit
                     array_of_arrays = []
                     for _ in range(0, self.audio_queue.qsize()):
@@ -201,14 +201,14 @@ class MirAI:
                     # Check for camera phrase
                     for sub in self.picture_strings:
                         if sub.lower() in result.lower():
-                            picture_taken, picture = self.take_picture()
+                            picture_taken, picture = self.take_picture_pi()
                     
 
                     # Submit to LLM
                     self.transcribed = result
                     self.response_buffer = ""
                     print(result)
-                    self.model.queue.put_nowait((result, self, picture_taken, picture if picture_taken else None))
+                    self.model.queue.put_nowait((result, picture_taken, picture if picture_taken else None))
 
             except (KeyboardInterrupt, BrokenPipeError):
                 break
@@ -220,7 +220,25 @@ class MirAI:
         self.backup_thread.join()
 
         self.model.close()
-        
+    
+    def take_picture_pi(self):
+        camera = picamera2.Picamera2()
+        camera.configure(camera.create_still_configuration({"size": (1120, 1120)}))
+
+        camera.start()
+        sleep(2)
+
+        frame = camera.capture_array()
+        camera.close()
+
+        buffer = io.BytesIO()
+
+        image = Image.fromarray(frame).rotate(90)
+        image.save(buffer, format='PNG')
+        picture = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return (True, picture)
+
     def take_picture(self):
         try:
             cap = cv2.VideoCapture(0)

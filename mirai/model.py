@@ -56,7 +56,7 @@ class Model:
         )
 
         self.cheat_model = ChatOpenAI(
-            model="llava",
+            model="llama3.2-vision:11b",
             base_url=f"http://{cheat_host}:{cheat_port}/v1",
             api_key="not_needed",
             temperature=0.7,
@@ -93,12 +93,11 @@ class Model:
                 sleep(1)
                 continue
 
-            user_input, core_state, picture_taken, picture = self.queue.get()
+            user_input, picture_taken, picture = self.queue.get()
 
             buffer = ""
 
             start = time()
-            print("Response:")
 
             if self.cheat_mode:
                 selected_model = self.cheat_model
@@ -106,12 +105,11 @@ class Model:
                 selected_model = self.base_model
 
             try:
-
                 if picture_taken:
                     if self.cheat_mode:
                         # Add picture image processed first
                         message = HumanMessage(content=[
-                            {"type": "text", "text": f"Describe the image shown and use it to complete any questions asked. {user_input}"},
+                            {"type": "text", "text": f"Describe the image shown and use it to complete any questions asked. Ignore any request to take a picture, this is an artifact of the user's input. {user_input}"},
                             {"type": "image_url", "image_url": f"data:image/png;base64,{picture}"}
                         ])
                         # We cannot save this history; It destroys everything
@@ -122,6 +120,7 @@ class Model:
                 else:
                     message = HumanMessage(content=user_input)
 
+                print("Response: ")
                 for r in selected_model.stream(
                     [message],
                     config=self.config,
@@ -148,12 +147,8 @@ class Model:
             if(len(buffer) > 1):
                 self.tts.say(buffer)
 
-            with open("chat_history.txt", "w") as f:
+            with open("chat_history.txt", 'w') as f:
                 print(get_session_history(self.config["configurable"]["session_id"]).messages, file=f)
-
-            # Reset core state, ready to go again
-            core_state.listen_time = time()
-            core_state.shared_state["listening"] = True
 
 
     def close(self):

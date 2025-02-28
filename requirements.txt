@@ -9,5 +9,8 @@ langchain
 langchain_openai
 langgraph
 customtkinter
-pillow
+pillow>=11.0.0
 opencv-python
+
+# Comment out if not running on a Pi
+picamera2
